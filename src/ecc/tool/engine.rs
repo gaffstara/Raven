@@ -7,7 +7,6 @@ use crate::ecc::traits::{
 use std::sync::Arc;
 
 /// The main orchestrator for Tool ECC.
-
 pub struct ToolEccEngine {
     validator: Arc<dyn Validator<ToolCall>>,
     _corrector: Arc<dyn Corrector<ToolCall>>,

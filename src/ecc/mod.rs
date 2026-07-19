@@ -7,6 +7,7 @@
 pub mod corrector;
 pub mod engine;
 pub mod errors;
+pub mod executor;
 pub mod memory;
 pub mod pipeline;
 pub mod planner;

@@ -246,3 +246,33 @@ impl WorkflowService {
         result
     }
 }
+
+impl WorkflowController for WorkflowService {
+    fn start(&self, plan: ExecutionPlan) -> RavenResult<String> {
+        self.start(plan)
+    }
+
+    fn pause(&self) -> RavenResult<()> {
+        self.pause()
+    }
+
+    fn resume(&self) -> RavenResult<()> {
+        self.resume()
+    }
+
+    fn cancel(&self) -> RavenResult<()> {
+        self.cancel()
+    }
+
+    fn retry(&self) -> RavenResult<String> {
+        self.retry()
+    }
+
+    fn continue_workflow(&self) -> RavenResult<String> {
+        self.continue_workflow()
+    }
+
+    fn status(&self) -> WorkflowStatus {
+        self.status().expect("workflow status should be available")
+    }
+}

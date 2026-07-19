@@ -203,7 +203,7 @@ pub struct ToolEccPipeline;
 
 impl ToolEccPipeline {
     /// Build the default pipeline using the given stage components.
-    pub fn new(
+    pub fn build(
         validator_stage: Box<dyn PipelineStage<ToolCall>>,
         corrector_stage: Box<dyn PipelineStage<ToolCall>>,
         classifier_stage: Box<dyn PipelineStage<ToolCall>>,

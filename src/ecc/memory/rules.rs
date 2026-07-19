@@ -40,7 +40,7 @@ impl Rule<MemoryValidationEntry> for MemoryIdFormatRule {
                 MemoryIssueKind::MemoryIdFormat.category().to_string(),
                 "Memory ID format invalid".to_string(),
                 Some(format!("Expected format 'm' + 8 digits, got '{}'", id)),
-                Some(format!("field: id")),
+                Some("field: id".to_string()),
             )]);
         }
 
@@ -70,7 +70,7 @@ impl Rule<MemoryValidationEntry> for MemoryIdNotEmptyRule {
                 MemoryIssueKind::MemoryIdEmpty.category().to_string(),
                 "Memory ID is empty".to_string(),
                 None,
-                Some(format!("field: id")),
+                Some("field: id".to_string()),
             )]);
         }
 

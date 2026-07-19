@@ -120,7 +120,7 @@ impl ToolEccBuilder {
             .unwrap_or_else(|| Arc::new(ToolReporter::new()));
 
         let pipeline = self.pipeline.unwrap_or_else(|| {
-            ToolEccPipeline::new(
+            ToolEccPipeline::build(
                 Box::new(ToolValidationStage::new(validator.clone())),
                 Box::new(ToolCorrectionStage::new(corrector.clone())),
                 Box::new(ToolClassificationStage::new(classifier.clone())),

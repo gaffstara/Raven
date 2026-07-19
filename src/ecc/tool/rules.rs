@@ -28,6 +28,12 @@ impl ToolExistsRule {
     }
 }
 
+impl Default for ToolExistsRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for ToolExistsRule {
     fn id(&self) -> &'static str {
         "tool.exists"
@@ -64,6 +70,12 @@ pub struct RequiredParameterRule;
 impl RequiredParameterRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for RequiredParameterRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -122,6 +134,12 @@ impl UnknownParameterRule {
     }
 }
 
+impl Default for UnknownParameterRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for UnknownParameterRule {
     fn id(&self) -> &'static str {
         "tool.unknown_parameter"
@@ -175,6 +193,12 @@ pub struct ParameterTypeRule;
 impl ParameterTypeRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for ParameterTypeRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -246,6 +270,12 @@ impl JsonFormatRule {
     }
 }
 
+impl Default for JsonFormatRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for JsonFormatRule {
     fn id(&self) -> &'static str {
         "tool.json_format"
@@ -287,6 +317,12 @@ pub struct EnumRule;
 impl EnumRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for EnumRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -346,6 +382,12 @@ pub struct DuplicateParameterRule;
 impl DuplicateParameterRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for DuplicateParameterRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -461,7 +503,7 @@ impl ToolRule for DuplicateParameterRule {
                         '-' | '0'..='9' => {
                             chars.next();
                             while let Some(&c) = chars.peek() {
-                                if c.is_digit(10)
+                                if c.is_ascii_digit()
                                     || c == '.'
                                     || c == 'e'
                                     || c == 'E'
@@ -531,6 +573,12 @@ impl PermissionRule {
     }
 }
 
+impl Default for PermissionRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for PermissionRule {
     fn id(&self) -> &'static str {
         "tool.permission"
@@ -577,6 +625,12 @@ pub struct DangerousArgumentRule;
 impl DangerousArgumentRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for DangerousArgumentRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -629,6 +683,12 @@ impl DependencyRule {
     }
 }
 
+impl Default for DependencyRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for DependencyRule {
     fn id(&self) -> &'static str {
         "tool.dependency"
@@ -668,6 +728,12 @@ pub struct TimeoutRule;
 impl TimeoutRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for TimeoutRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -713,6 +779,12 @@ impl SandboxRule {
     }
 }
 
+impl Default for SandboxRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRule for SandboxRule {
     fn id(&self) -> &'static str {
         "tool.sandbox"
@@ -750,6 +822,12 @@ pub struct ReservedParameterRule;
 impl ReservedParameterRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for ReservedParameterRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -795,6 +873,12 @@ pub struct EmptyParameterRule;
 impl EmptyParameterRule {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for EmptyParameterRule {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -15,10 +15,10 @@ impl DependencyCycleRule {
         let mut rec_stack = HashSet::new();
 
         for step in &workflow.steps {
-            if !visited.contains(&step.id) {
-                if Self::dfs(&step.id, workflow, &mut visited, &mut rec_stack) {
-                    return true;
-                }
+            if !visited.contains(&step.id)
+                && Self::dfs(&step.id, workflow, &mut visited, &mut rec_stack)
+            {
+                return true;
             }
         }
         false

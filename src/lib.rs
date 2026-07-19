@@ -8,6 +8,7 @@
 //! - llm
 //! - executor
 
+pub mod agent;
 pub mod ecc;
 pub mod error;
 pub mod event;

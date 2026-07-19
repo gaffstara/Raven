@@ -49,9 +49,12 @@ pub struct Step {
     pub needs_tool: bool,
     pub tool_name: Option<String>,
     pub params: Option<serde_json::Value>,
+    pub metadata: std::collections::HashMap<String, String>,
     pub depends_on: Vec<String>,
     pub estimated_cost: u32,
     pub priority: u8,
+    pub timeout_ms: Option<u64>,
+    pub deadline_ms: Option<u64>,
     pub status: StepStatus,
     pub last_update: Option<DateTime<Utc>>,
     pub retry_policy: RetryPolicy,
@@ -66,9 +69,12 @@ impl Step {
             needs_tool: false,
             tool_name: None,
             params: None,
+            metadata: std::collections::HashMap::new(),
             depends_on: Vec::new(),
             estimated_cost: 1,
             priority: 5,
+            timeout_ms: None,
+            deadline_ms: None,
             status: StepStatus::Pending,
             last_update: None,
             retry_policy: RetryPolicy::new(),
@@ -108,6 +114,7 @@ pub trait Planner: Send + Sync {
 
 /// Progress tracking interface used by the Executor to update step state
 pub trait PlannerProgress: Send + Sync {
+    fn load_plan(&self, plan: &ExecutionPlan) -> RavenResult<()>;
     fn mark_step_started(&self, id: &str) -> RavenResult<()>;
     fn mark_step_completed(&self, id: &str) -> RavenResult<()>;
     fn mark_step_failed(&self, id: &str, reason: &str) -> RavenResult<()>;
@@ -474,6 +481,10 @@ impl Planner for PlannerService {
 }
 
 impl PlannerProgress for PlannerService {
+    fn load_plan(&self, plan: &ExecutionPlan) -> RavenResult<()> {
+        PlannerService::set_plan(self, plan.clone())
+    }
+
     fn mark_step_started(&self, id: &str) -> RavenResult<()> {
         PlannerService::mark_step_started(self, id)
     }
