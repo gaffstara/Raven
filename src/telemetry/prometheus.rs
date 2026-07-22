@@ -7,7 +7,7 @@ const PROMETHEUS_BUCKETS: &[f64] = &[10.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 50
 
 fn extract_label_names_and_values(labels: Option<&[(&str, &str)]>) -> (Vec<String>, Vec<String>) {
     let mut items: Vec<(&str, &str)> = labels.unwrap_or(&[]).to_vec();
-    items.sort_by(|(a, _), (b, _)| a.cmp(b));
+    items.sort_by_key(|(a, _)| *a);
     let names = items.iter().map(|(k, _)| k.to_string()).collect();
     let values = items.iter().map(|(_, v)| v.to_string()).collect();
     (names, values)
@@ -38,7 +38,15 @@ impl PrometheusExporter {
             gauges: Mutex::new(HashMap::new()),
         }
     }
+}
 
+impl Default for PrometheusExporter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PrometheusExporter {
     pub fn registry(&self) -> Registry {
         self.registry.clone()
     }

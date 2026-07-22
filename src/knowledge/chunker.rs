@@ -1,7 +1,7 @@
 use crate::knowledge::chunk::Chunk;
 use crate::knowledge::document::Document;
 use crate::knowledge::errors::{KnowledgeError, KnowledgeResult};
-use crate::knowledge::metadata::DocumentMetadata;
+use crate::knowledge::metadata::{DocumentMetadata, DocumentMetadataSpec};
 use crate::knowledge::traits::Chunker;
 
 /// Deterministic chunker splitting content into fixed-size sequential chunks.
@@ -35,21 +35,21 @@ impl Chunker for FixedChunker {
                 ))
             })?;
 
-            let chunk_metadata = DocumentMetadata::new(
-                document.title().to_string(),
-                document.metadata().author().map(|s| s.to_string()),
-                document.language().to_string(),
-                document.metadata().category().to_string(),
-                document.metadata().topic().map(|s| s.to_string()),
-                document.metadata().tags().to_vec(),
-                document.metadata().difficulty().to_string(),
-                document.metadata().version().to_string(),
-                document.metadata().source().to_string(),
-                document.metadata().hash().to_string(),
-                chunk_content.len() as u64,
-                document.metadata().created_at(),
-                document.metadata().updated_at(),
-            );
+            let chunk_metadata = DocumentMetadata::from_spec(DocumentMetadataSpec {
+                title: document.title().to_string(),
+                author: document.metadata().author().map(|s| s.to_string()),
+                language: document.language().to_string(),
+                category: document.metadata().category().to_string(),
+                topic: document.metadata().topic().map(|s| s.to_string()),
+                tags: document.metadata().tags().to_vec(),
+                difficulty: document.metadata().difficulty().to_string(),
+                version: document.metadata().version().to_string(),
+                source: document.metadata().source().to_string(),
+                hash: document.metadata().hash().to_string(),
+                size: chunk_content.len() as u64,
+                created_at: document.metadata().created_at(),
+                updated_at: document.metadata().updated_at(),
+            });
 
             let chunk = Chunk::new(
                 format!("{}:chunk:{}", document.id(), sequence),

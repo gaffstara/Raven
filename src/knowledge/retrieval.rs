@@ -58,7 +58,15 @@ impl SemanticRetrievalEngine {
             normalizer: Regex::new(r"[^\p{L}\p{N}\s]").unwrap(),
         }
     }
+}
 
+impl Default for SemanticRetrievalEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SemanticRetrievalEngine {
     fn normalize_text(&self, text: &str) -> String {
         let lower = text.nfkd().collect::<String>().to_lowercase();
         let cleaned = self.normalizer.replace_all(&lower, " ");

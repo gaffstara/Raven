@@ -67,3 +67,9 @@ impl KnowledgePipelineBuilder {
         )
     }
 }
+
+impl Default for KnowledgePipelineBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

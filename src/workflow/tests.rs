@@ -2,7 +2,7 @@ use crate::llm::{Llm, SimpleLlm};
 use crate::memory::MemoryService;
 use crate::planner::{PlannerProgress, PlannerService};
 use crate::tool::ToolService;
-use crate::workflow::engine::WorkflowService;
+use crate::workflow::engine::{WorkflowService, WorkflowServiceDependencies};
 use crate::workflow::state::WorkflowState;
 use std::sync::{Arc, Mutex};
 
@@ -27,13 +27,15 @@ fn workflow_service_lifecycle_controls() {
         ));
     let reflection = crate::reflection::ReflectionService::new();
     let engine = WorkflowService::new(
-        Arc::clone(&planner),
-        Arc::clone(&memory),
-        Arc::clone(&tools),
-        Arc::clone(&llm),
-        Arc::new(reflection),
-        executor,
-        Arc::clone(&event_bus),
+        WorkflowServiceDependencies {
+            planner: Arc::clone(&planner),
+            memory: Arc::clone(&memory),
+            tools: Arc::clone(&tools),
+            llm: Arc::clone(&llm),
+            reflection: Arc::new(reflection),
+            executor,
+            event_bus: Arc::clone(&event_bus),
+        },
         None,
     );
 

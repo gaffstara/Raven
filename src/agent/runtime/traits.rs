@@ -59,13 +59,15 @@ impl WorkflowFactory for WorkflowFactoryImpl {
         runtime_context: Option<RuntimeContext>,
     ) -> Arc<dyn WorkflowController> {
         Arc::new(crate::workflow::engine::WorkflowService::new(
-            self.planner.clone(),
-            self.memory.clone(),
-            self.tools.clone(),
-            self.llm.clone(),
-            self.reflection.clone(),
-            executor,
-            self.event_bus.clone(),
+            crate::workflow::engine::WorkflowServiceDependencies {
+                planner: self.planner.clone(),
+                memory: self.memory.clone(),
+                tools: self.tools.clone(),
+                llm: self.llm.clone(),
+                reflection: self.reflection.clone(),
+                executor,
+                event_bus: self.event_bus.clone(),
+            },
             runtime_context,
         ))
     }

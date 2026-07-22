@@ -61,7 +61,7 @@ fn runtime_can_access_knowledge_manager_and_run_plan() {
             raven_agent::knowledge::storage::InMemoryKnowledgeStorage::new(),
         ))
         .build();
-    let mut knowledge_manager_impl = KnowledgeManagerImpl::new_with_default_engine(pipeline);
+    let knowledge_manager_impl = KnowledgeManagerImpl::new_with_default_engine(pipeline);
     let _ = knowledge_manager_impl
         .process_directory(&root)
         .expect("process knowledge directory");

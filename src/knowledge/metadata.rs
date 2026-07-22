@@ -19,36 +19,38 @@ pub struct DocumentMetadata {
     updated_at: DateTime<Utc>,
 }
 
+pub struct DocumentMetadataSpec {
+    pub title: String,
+    pub author: Option<String>,
+    pub language: String,
+    pub category: String,
+    pub topic: Option<String>,
+    pub tags: Vec<String>,
+    pub difficulty: String,
+    pub version: String,
+    pub source: String,
+    pub hash: String,
+    pub size: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl DocumentMetadata {
-    pub fn new(
-        title: String,
-        author: Option<String>,
-        language: String,
-        category: String,
-        topic: Option<String>,
-        tags: Vec<String>,
-        difficulty: String,
-        version: String,
-        source: String,
-        hash: String,
-        size: u64,
-        created_at: DateTime<Utc>,
-        updated_at: DateTime<Utc>,
-    ) -> Self {
+    pub fn from_spec(spec: DocumentMetadataSpec) -> Self {
         Self {
-            title,
-            author,
-            language,
-            category,
-            topic,
-            tags,
-            difficulty,
-            version,
-            source,
-            hash,
-            size,
-            created_at,
-            updated_at,
+            title: spec.title,
+            author: spec.author,
+            language: spec.language,
+            category: spec.category,
+            topic: spec.topic,
+            tags: spec.tags,
+            difficulty: spec.difficulty,
+            version: spec.version,
+            source: spec.source,
+            hash: spec.hash,
+            size: spec.size,
+            created_at: spec.created_at,
+            updated_at: spec.updated_at,
         }
     }
 

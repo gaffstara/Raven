@@ -1,5 +1,5 @@
 use crate::knowledge::chunk::Chunk;
-use crate::knowledge::document::Document;
+use crate::knowledge::document::{Document, DocumentSpec};
 use crate::knowledge::errors::{KnowledgeError, KnowledgeResult};
 use crate::knowledge::traits::{
     Chunker, DocumentLoader, DocumentValidator, HashEngine, KnowledgeStorage,
@@ -37,31 +37,33 @@ impl KnowledgePipeline {
         let mut document = self.loader.load(path)?;
         let content_hash = self.hash_engine.hash(document.content().as_bytes());
         let metadata = document.metadata().clone();
-        let metadata = crate::knowledge::metadata::DocumentMetadata::new(
-            metadata.title().to_string(),
-            metadata.author().map(|s| s.to_string()),
-            metadata.language().to_string(),
-            metadata.category().to_string(),
-            metadata.topic().map(|s| s.to_string()),
-            metadata.tags().to_vec(),
-            metadata.difficulty().to_string(),
-            metadata.version().to_string(),
-            metadata.source().to_string(),
-            content_hash.clone(),
-            metadata.size(),
-            metadata.created_at(),
-            metadata.updated_at(),
+        let metadata = crate::knowledge::metadata::DocumentMetadata::from_spec(
+            crate::knowledge::metadata::DocumentMetadataSpec {
+                title: metadata.title().to_string(),
+                author: metadata.author().map(|s| s.to_string()),
+                language: metadata.language().to_string(),
+                category: metadata.category().to_string(),
+                topic: metadata.topic().map(|s| s.to_string()),
+                tags: metadata.tags().to_vec(),
+                difficulty: metadata.difficulty().to_string(),
+                version: metadata.version().to_string(),
+                source: metadata.source().to_string(),
+                hash: content_hash.clone(),
+                size: metadata.size(),
+                created_at: metadata.created_at(),
+                updated_at: metadata.updated_at(),
+            },
         );
-        document = Document::new(
-            document.id().to_string(),
-            document.path().to_path_buf(),
-            document.title().to_string(),
-            document.language().to_string(),
-            document.tags().to_vec(),
-            document.source().to_string(),
+        document = Document::from_spec(DocumentSpec {
+            id: document.id().to_string(),
+            path: document.path().to_path_buf(),
+            title: document.title().to_string(),
+            language: document.language().to_string(),
+            tags: document.tags().to_vec(),
+            source: document.source().to_string(),
             metadata,
-            document.content().to_string(),
-        );
+            content: document.content().to_string(),
+        });
 
         let chunks = self.chunker.chunk(&document)?;
         let chunks = chunks

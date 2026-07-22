@@ -1,7 +1,7 @@
 use crate::knowledge::context::KnowledgeContext;
-use crate::knowledge::document::Document;
+use crate::knowledge::document::{Document, DocumentSpec};
 use crate::knowledge::errors::KnowledgeResult;
-use crate::knowledge::metadata::DocumentMetadata;
+use crate::knowledge::metadata::{DocumentMetadata, DocumentMetadataSpec};
 use crate::knowledge::pipeline::KnowledgePipeline;
 use crate::knowledge::retrieval::{KnowledgeRetrievalEngine, SemanticRetrievalEngine};
 use crate::knowledge::traits::KnowledgeManager;
@@ -84,31 +84,31 @@ impl KnowledgeManager for KnowledgeManagerImpl {
             .timestamp_nanos_opt()
             .unwrap_or_else(|| now.timestamp() * 1_000_000_000);
         let id = format!("store:{}:{}", title, timestamp);
-        let metadata = DocumentMetadata::new(
-            title.to_string(),
-            None,
-            "text".to_string(),
-            "reflection".to_string(),
-            None,
-            tags.to_vec(),
-            "intermediate".to_string(),
-            "1.0".to_string(),
-            "local".to_string(),
-            id.clone(),
-            content.len() as u64,
-            now,
-            now,
-        );
-        let document = Document::new(
-            id.clone(),
-            PathBuf::from(""),
-            title.to_string(),
-            "text".to_string(),
-            tags.to_vec(),
-            "reflection".to_string(),
+        let metadata = DocumentMetadata::from_spec(DocumentMetadataSpec {
+            title: title.to_string(),
+            author: None,
+            language: "text".to_string(),
+            category: "reflection".to_string(),
+            topic: None,
+            tags: tags.to_vec(),
+            difficulty: "intermediate".to_string(),
+            version: "1.0".to_string(),
+            source: "local".to_string(),
+            hash: id.clone(),
+            size: content.len() as u64,
+            created_at: now,
+            updated_at: now,
+        });
+        let document = Document::from_spec(DocumentSpec {
+            id: id.clone(),
+            path: PathBuf::from(""),
+            title: title.to_string(),
+            language: "text".to_string(),
+            tags: tags.to_vec(),
+            source: "reflection".to_string(),
             metadata,
-            content.to_string(),
-        );
+            content: content.to_string(),
+        });
         self.pipeline.storage().save_document(document)?;
         Ok(id)
     }

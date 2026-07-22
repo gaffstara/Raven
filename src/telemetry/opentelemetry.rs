@@ -20,6 +20,12 @@ impl OpenTelemetryExporter {
     }
 }
 
+impl Default for OpenTelemetryExporter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TelemetryExporter for OpenTelemetryExporter {
     fn export_counter(
         &self,

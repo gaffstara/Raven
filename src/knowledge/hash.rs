@@ -11,6 +11,12 @@ impl Blake3HashEngine {
     }
 }
 
+impl Default for Blake3HashEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HashEngine for Blake3HashEngine {
     fn hash(&self, data: &[u8]) -> String {
         let mut hasher = Hasher::new();

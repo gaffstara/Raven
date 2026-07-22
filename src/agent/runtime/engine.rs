@@ -164,7 +164,7 @@ impl AgentRuntimeService {
             Some(&[("workflow_id", workflow_id.as_str())]),
         );
 
-        if let Some(_) = runtime_context.knowledge_context.as_ref() {
+        if runtime_context.knowledge_context.as_ref().is_some() {
             runtime_context = runtime_context.with_plan(scheduled.clone());
         }
 

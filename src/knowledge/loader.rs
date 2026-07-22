@@ -1,6 +1,6 @@
-use crate::knowledge::document::Document;
+use crate::knowledge::document::{Document, DocumentSpec};
 use crate::knowledge::errors::{KnowledgeError, KnowledgeResult};
-use crate::knowledge::metadata::DocumentMetadata;
+use crate::knowledge::metadata::{DocumentMetadata, DocumentMetadataSpec};
 use crate::knowledge::traits::DocumentLoader;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -15,7 +15,15 @@ impl FileLoader {
     pub fn new() -> Self {
         Self
     }
+}
 
+impl Default for FileLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileLoader {
     fn language_from_extension(path: &Path) -> String {
         match path
             .extension()
@@ -31,7 +39,7 @@ impl FileLoader {
     fn title_from_path(path: &Path) -> String {
         path.file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or_else(|| "document")
+            .unwrap_or("document")
             .to_string()
     }
 
@@ -68,10 +76,13 @@ impl FileLoader {
 pub fn parse_frontmatter(content: &str) -> KnowledgeResult<(HashMap<String, String>, String)> {
     let mut lines = content.lines();
     let first_line = lines.next().unwrap_or_default();
+    // Support optional frontmatter: if the document doesn't start with
+    // a YAML frontmatter delimiter (`---`), treat the whole content as body
+    // and return an empty metadata map. This allows temporary or simple
+    // documents (e.g., tests) to be processed without metadata.
     if first_line.trim() != "---" {
-        return Err(KnowledgeError::ValidationFailed(
-            "document metadata frontmatter is missing".to_string(),
-        ));
+        let map = HashMap::new();
+        return Ok((map, content.to_string()));
     }
 
     let mut metadata = HashMap::new();
@@ -168,32 +179,32 @@ impl DocumentLoader for FileLoader {
         let id = format!("{}:{}", path.display(), size);
         let hash = id.clone();
 
-        let document_metadata = DocumentMetadata::new(
-            title.clone(),
-            None,
-            language.clone(),
+        let document_metadata = DocumentMetadata::from_spec(DocumentMetadataSpec {
+            title: title.clone(),
+            author: None,
+            language: language.clone(),
             category,
             topic,
             tags,
             difficulty,
             version,
-            source.clone(),
+            source: source.clone(),
             hash,
             size,
-            now,
+            created_at: now,
             updated_at,
-        );
+        });
 
-        let document = Document::new(
-            id.clone(),
-            PathBuf::from(path),
+        let document = Document::from_spec(DocumentSpec {
+            id: id.clone(),
+            path: PathBuf::from(path),
             title,
             language,
-            Vec::new(),
+            tags: Vec::new(),
             source,
-            document_metadata,
+            metadata: document_metadata,
             content,
-        );
+        });
         Ok(document)
     }
 }

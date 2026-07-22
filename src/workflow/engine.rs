@@ -20,6 +20,16 @@ pub trait WorkflowController: Send + Sync {
 }
 
 /// The workflow service manages execution of plans and exposes lifecycle controls.
+pub struct WorkflowServiceDependencies {
+    pub planner: Arc<dyn PlannerProgress + Send + Sync>,
+    pub memory: Arc<Mutex<Box<dyn MemoryStorage>>>,
+    pub tools: Arc<Mutex<Box<dyn crate::tool::ToolManagerService>>>,
+    pub llm: Arc<dyn crate::llm::Llm + Send + Sync>,
+    pub reflection: Arc<dyn ReflectionEvaluator>,
+    pub executor: Arc<dyn Executor>,
+    pub event_bus: Arc<EventBus>,
+}
+
 pub struct WorkflowService {
     planner: Arc<dyn PlannerProgress + Send + Sync>,
     memory: Arc<Mutex<Box<dyn MemoryStorage>>>,
@@ -43,23 +53,17 @@ impl WorkflowService {
     }
 
     pub fn new(
-        planner: Arc<dyn PlannerProgress + Send + Sync>,
-        memory: Arc<Mutex<Box<dyn MemoryStorage>>>,
-        tools: Arc<Mutex<Box<dyn crate::tool::ToolManagerService>>>,
-        llm: Arc<dyn crate::llm::Llm + Send + Sync>,
-        reflection: Arc<dyn ReflectionEvaluator>,
-        executor: Arc<dyn Executor>,
-        event_bus: Arc<EventBus>,
+        dependencies: WorkflowServiceDependencies,
         runtime_context: Option<RuntimeContext>,
     ) -> Self {
         Self {
-            planner,
-            memory,
-            tools,
-            llm,
-            reflection,
-            executor,
-            event_bus,
+            planner: dependencies.planner,
+            memory: dependencies.memory,
+            tools: dependencies.tools,
+            llm: dependencies.llm,
+            reflection: dependencies.reflection,
+            executor: dependencies.executor,
+            event_bus: dependencies.event_bus,
             runtime_context,
             status: Arc::new(Mutex::new(WorkflowStatus::new())),
             plan: Arc::new(Mutex::new(None)),
@@ -224,7 +228,7 @@ impl WorkflowService {
 
         if let Some(ctx) = &self.runtime_context {
             if let Some(kctx) = &ctx.knowledge_context {
-                let _ = log::info!(
+                log::info!(
                     "Workflow starting with retrieved knowledge summary: {}",
                     kctx.summary()
                 );

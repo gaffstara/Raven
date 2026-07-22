@@ -14,26 +14,28 @@ pub struct Document {
     content: String,
 }
 
+pub struct DocumentSpec {
+    pub id: String,
+    pub path: PathBuf,
+    pub title: String,
+    pub language: String,
+    pub tags: Vec<String>,
+    pub source: String,
+    pub metadata: DocumentMetadata,
+    pub content: String,
+}
+
 impl Document {
-    pub fn new(
-        id: String,
-        path: PathBuf,
-        title: String,
-        language: String,
-        tags: Vec<String>,
-        source: String,
-        metadata: DocumentMetadata,
-        content: String,
-    ) -> Self {
+    pub fn from_spec(spec: DocumentSpec) -> Self {
         Self {
-            id,
-            path,
-            title,
-            language,
-            tags,
-            source,
-            metadata,
-            content,
+            id: spec.id,
+            path: spec.path,
+            title: spec.title,
+            language: spec.language,
+            tags: spec.tags,
+            source: spec.source,
+            metadata: spec.metadata,
+            content: spec.content,
         }
     }
 
