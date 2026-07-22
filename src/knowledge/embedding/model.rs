@@ -110,11 +110,10 @@ impl TfidfEmbeddingModel {
         let mut filtered_tokens: Vec<_> = doc_freq
             .into_iter()
             .filter(|(_, df)| *df >= self.config.min_df && *df <= max_df_count)
-            .map(|(token, df)| (token, df))
             .collect();
 
         // Sort by frequency (most common first) and take top max_features
-        filtered_tokens.sort_by(|a, b| b.1.cmp(&a.1));
+        filtered_tokens.sort_by_key(|(_, df)| std::cmp::Reverse(*df));
         filtered_tokens.truncate(self.config.max_features);
 
         // Build vocabulary and compute IDF

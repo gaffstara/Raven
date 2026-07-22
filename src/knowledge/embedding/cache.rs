@@ -177,19 +177,17 @@ impl EmbeddingCache {
             .iter()
             .map(|(hash, cached)| (hash.to_hex().to_string(), cached))
             .collect();
-        let data = serde_json::to_string(&entries)
-            .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, data)
-            .map_err(|e| format!("IO error: {}", e))?;
+        let data =
+            serde_json::to_string(&entries).map_err(|e| format!("Serialization error: {}", e))?;
+        std::fs::write(path, data).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 
     /// Load cache from file.
     pub fn load(&self, path: &str) -> Result<usize, String> {
-        let data = std::fs::read_to_string(path)
-            .map_err(|e| format!("IO error: {}", e))?;
-        let entries: Vec<(String, CachedEmbedding)> = serde_json::from_str(&data)
-            .map_err(|e| format!("Deserialization error: {}", e))?;
+        let data = std::fs::read_to_string(path).map_err(|e| format!("IO error: {}", e))?;
+        let entries: Vec<(String, CachedEmbedding)> =
+            serde_json::from_str(&data).map_err(|e| format!("Deserialization error: {}", e))?;
 
         let mut cache = self.cache.lock().map_err(|e| e.to_string())?;
         for (hex_hash, cached) in entries {
@@ -222,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_cache_hit() {
-        let mut cache = EmbeddingCache::new();
+        let cache = EmbeddingCache::new();
         let content = "hello world";
         let hash = EmbeddingCache::hash_content(content);
         let vector = DenseVector::new(vec![1.0, 2.0, 3.0]);
@@ -235,14 +233,14 @@ mod tests {
 
     #[test]
     fn test_cache_miss() {
-        let mut cache = EmbeddingCache::new();
+        let cache = EmbeddingCache::new();
         let hash = EmbeddingCache::hash_content("test");
         assert!(cache.get(hash).is_none());
     }
 
     #[test]
     fn test_cache_disabled() {
-        let mut cache = EmbeddingCache::disabled();
+        let cache = EmbeddingCache::disabled();
         let hash = EmbeddingCache::hash_content("test");
         let vector = DenseVector::new(vec![1.0, 2.0]);
         cache.insert(hash, vector);
@@ -251,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_get_or_insert() {
-        let mut cache = EmbeddingCache::new();
+        let cache = EmbeddingCache::new();
         let content = "test content";
         let vector = DenseVector::new(vec![1.0, 2.0, 3.0]);
 
@@ -265,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_cache_statistics() {
-        let mut cache = EmbeddingCache::new();
+        let cache = EmbeddingCache::new();
         let hash = EmbeddingCache::hash_content("test");
         let vector = DenseVector::new(vec![1.0]);
 

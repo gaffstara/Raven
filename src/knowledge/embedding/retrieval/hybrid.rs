@@ -1,7 +1,6 @@
 //! Hybrid retrieval combining semantic and keyword search.
 
-use crate::knowledge::chunk::Chunk;
-use crate::knowledge::retrieval::RetrievalResult;
+use crate::knowledge::embedding::vector::search::{SearchResult, SearchResultSet};
 
 /// Hybrid retrieval configuration.
 #[derive(Debug, Clone)]
@@ -28,10 +27,7 @@ impl HybridRetrievalConfig {
     pub fn validate(&self) -> Result<(), String> {
         let sum = self.semantic_weight + self.keyword_weight;
         if (sum - 1.0).abs() > 0.01 {
-            return Err(format!(
-                "Weights must sum to 1.0, got {}",
-                sum
-            ));
+            return Err(format!("Weights must sum to 1.0, got {}", sum));
         }
         if self.semantic_weight < 0.0 || self.keyword_weight < 0.0 {
             return Err("Weights must be non-negative".to_string());
@@ -75,104 +71,77 @@ impl HybridRetrievalEngine {
     }
 
     /// Normalize scores to 0.0 - 1.0 range.
+    #[allow(dead_code)]
     fn normalize_score(score: f32) -> f32 {
-        score.max(0.0).min(1.0)
+        score.clamp(0.0, 1.0)
     }
 
     /// Combine semantic and keyword retrieval results.
     pub fn combine_results(
         &self,
-        semantic_results: RetrievalResult,
-        keyword_results: RetrievalResult,
+        semantic_results: &SearchResultSet,
+        keyword_results: &SearchResultSet,
         limit: usize,
-    ) -> RetrievalResult {
-        // Create a map of chunk IDs to their scores
+    ) -> SearchResultSet {
         use std::collections::HashMap;
 
-        let mut combined_scores: HashMap<String, (f32, Chunk, bool)> = HashMap::new();
-
-        // Add semantic results (with document)
-        for chunk in &semantic_results.top_chunks {
-            let score = semantic_results
-                .top_chunks
-                .iter()
-                .position(|c| c.id() == chunk.id())
-                .map(|pos| {
-                    // Convert position to score (1.0 for best, decreasing)
-                    1.0 / (1.0 + pos as f32 * 0.1)
-                })
-                .unwrap_or(0.5);
-
-            combined_scores
-                .entry(chunk.id().to_string())
-                .and_modify(|(s, _, has_semantic)| {
-                    *s = s.max(
-                        self.compute_hybrid_score(
-                            Self::normalize_score(score),
-                            Self::normalize_score(*s),
-                        ),
-                    );
-                    *has_semantic = true;
-                })
-                .or_insert((
-                    self.compute_hybrid_score(Self::normalize_score(score), 0.0),
-                    chunk.clone(),
-                    true,
-                ));
+        // If one side is empty, fallback to the other side
+        if semantic_results.is_empty() && !keyword_results.is_empty() {
+            return keyword_results.clone();
+        }
+        if keyword_results.is_empty() && !semantic_results.is_empty() {
+            return semantic_results.clone();
         }
 
-        // Add keyword results (with document)
-        for chunk in &keyword_results.top_chunks {
-            let score = keyword_results
-                .top_chunks
-                .iter()
-                .position(|c| c.id() == chunk.id())
-                .map(|pos| {
-                    // Convert position to score (1.0 for best, decreasing)
-                    1.0 / (1.0 + pos as f32 * 0.1)
-                })
-                .unwrap_or(0.3);
+        let mut map: HashMap<String, (f32, f32, SearchResult)> = HashMap::new();
 
-            combined_scores
-                .entry(chunk.id().to_string())
-                .and_modify(|(s, _, _)| {
-                    *s = self.compute_hybrid_score(
-                        Self::normalize_score(*s),
-                        Self::normalize_score(score),
-                    );
-                })
-                .or_insert((
-                    self.compute_hybrid_score(0.0, Self::normalize_score(score)),
-                    chunk.clone(),
-                    false,
-                ));
+        for sr in &semantic_results.results {
+            map.insert(
+                sr.vector_id.clone(),
+                (sr.similarity_score, 0.0, sr.clone()),
+            );
         }
 
-        // Sort by combined score
-        let mut sorted: Vec<_> = combined_scores.into_values().collect();
-        sorted.sort_by(|a, b| {
-            b.0.partial_cmp(&a.0)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        for kr in &keyword_results.results {
+            map.entry(kr.vector_id.clone())
+                .and_modify(|entry| entry.1 = kr.similarity_score)
+                .or_insert((0.0, kr.similarity_score, kr.clone()));
+        }
 
-        // Extract top-k chunks
-        let top_chunks: Vec<Chunk> = sorted
+        // Compute hybrid score and merge metadata/content
+        let fused: Vec<SearchResult> = map
             .into_iter()
-            .take(limit)
-            .map(|(_, chunk, _)| chunk)
+            .map(|(_id, (sem, key, mut sr))| {
+                let hybrid = self.compute_hybrid_score(sem, key).clamp(0.0, 1.0);
+                // Merge metadata: prefer entries already in sr, otherwise nothing to do
+                sr.similarity_score = hybrid;
+                sr
+            })
             .collect();
 
+        // Deduplicate by document id (keep highest score per document)
+        let mut by_doc: HashMap<String, SearchResult> = HashMap::new();
+        for r in fused.into_iter() {
+            let doc_id = r.metadata.get("document_id").cloned().unwrap_or_default();
+            by_doc.entry(doc_id).and_modify(|existing| {
+                if r.similarity_score > existing.similarity_score {
+                    *existing = r.clone();
+                }
+            }).or_insert(r);
+        }
+
+        let mut results: Vec<SearchResult> = by_doc.into_values().collect();
+
+        // Sort by hybrid score desc
+        results.sort_by(|a, b| b.similarity_score.partial_cmp(&a.similarity_score).unwrap_or(std::cmp::Ordering::Equal));
+
+        let total = results.len();
+        results.truncate(limit);
+
+        // Build combined query string
         let query = format!("{} + {}", semantic_results.query, keyword_results.query);
 
-        RetrievalResult::new(
-            query,
-            vec![], // Documents would need to be reconstructed from chunks
-            top_chunks,
-            std::cmp::max(
-                semantic_results.candidate_count,
-                keyword_results.candidate_count,
-            ),
-        )
+        SearchResultSet::new(results, query, total, total)
     }
 }
 

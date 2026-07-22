@@ -1,7 +1,7 @@
 //! In-memory vector storage with metadata.
 
-use crate::knowledge::embedding::vector::DenseVector;
 use crate::knowledge::embedding::vector::metadata::{MetadataStore, VectorMetadata};
+use crate::knowledge::embedding::vector::DenseVector;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -81,10 +81,7 @@ impl VectorStorage {
     }
 
     /// Batch insert multiple vectors.
-    pub fn batch_insert(
-        &mut self,
-        entries: Vec<(String, DenseVector, VectorMetadata)>,
-    ) {
+    pub fn batch_insert(&mut self, entries: Vec<(String, DenseVector, VectorMetadata)>) {
         for (id, vector, metadata) in entries {
             self.insert(id, vector, metadata);
         }
@@ -206,11 +203,8 @@ mod tests {
     fn test_insert_and_retrieve() {
         let mut storage = VectorStorage::new();
         let vector = DenseVector::new(vec![1.0, 2.0, 3.0]);
-        let metadata = VectorMetadata::minimal(
-            "v1".to_string(),
-            "d1".to_string(),
-            "content".to_string(),
-        );
+        let metadata =
+            VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "content".to_string());
 
         storage.insert("v1".to_string(), vector.clone(), metadata);
         assert!(storage.contains("v1"));
@@ -221,8 +215,7 @@ mod tests {
     fn test_remove() {
         let mut storage = VectorStorage::new();
         let vector = DenseVector::new(vec![1.0, 2.0]);
-        let metadata =
-            VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "x".to_string());
+        let metadata = VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "x".to_string());
         storage.insert("v1".to_string(), vector, metadata);
         assert_eq!(storage.len(), 1);
 
@@ -272,11 +265,8 @@ mod tests {
     fn test_statistics() {
         let mut storage = VectorStorage::new();
         let vector = DenseVector::new(vec![1.0, 2.0, 3.0]);
-        let metadata = VectorMetadata::minimal(
-            "v1".to_string(),
-            "d1".to_string(),
-            "content".to_string(),
-        );
+        let metadata =
+            VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "content".to_string());
         storage.insert("v1".to_string(), vector, metadata);
 
         let stats = storage.statistics();

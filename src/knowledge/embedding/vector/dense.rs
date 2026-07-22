@@ -82,11 +82,7 @@ impl DenseVector {
         if self.dimension() != other.dimension() {
             return 0.0;
         }
-        self.data
-            .iter()
-            .zip(&other.data)
-            .map(|(a, b)| a * b)
-            .sum()
+        self.data.iter().zip(&other.data).map(|(a, b)| a * b).sum()
     }
 
     /// Compute the cosine similarity with another vector (both assumed normalized).

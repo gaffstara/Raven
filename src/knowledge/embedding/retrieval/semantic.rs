@@ -1,8 +1,8 @@
 //! Semantic search using embeddings.
 
 use crate::knowledge::embedding::engine::EmbeddingEngine;
-use crate::knowledge::embedding::vector::VectorIndex;
 use crate::knowledge::embedding::vector::search::SearchResultSet;
+use crate::knowledge::embedding::vector::VectorIndex;
 use std::sync::Arc;
 
 /// A semantic search engine that uses embeddings and vector similarity.
@@ -82,10 +82,8 @@ mod tests {
     #[test]
     fn test_semantic_search() {
         let docs = vec!["hello world", "test document", "semantic search"];
-        let engine = Arc::new(
-            LocalEmbeddingEngine::with_documents(&docs)
-                .expect("Failed to create engine"),
-        );
+        let engine =
+            Arc::new(LocalEmbeddingEngine::with_documents(&docs).expect("Failed to create engine"));
 
         let metric = Arc::new(CosineSimilarity);
         let index = Arc::new(parking_lot::RwLock::new(VectorIndex::new(metric)));
@@ -95,11 +93,8 @@ mod tests {
             let mut idx = index.write();
             for (i, doc) in docs.iter().enumerate() {
                 let embedding = engine.embed_text(doc).unwrap();
-                let meta = VectorMetadata::minimal(
-                    format!("v{}", i),
-                    format!("d{}", i),
-                    doc.to_string(),
-                );
+                let meta =
+                    VectorMetadata::minimal(format!("v{}", i), format!("d{}", i), doc.to_string());
                 idx.insert(format!("v{}", i), embedding, meta)
                     .expect("Failed to insert");
             }
@@ -107,6 +102,6 @@ mod tests {
 
         let search_engine = SemanticSearchEngine::new(engine, index);
         let results = search_engine.search("hello world", 2).unwrap();
-        assert!(results.len() > 0);
+        assert!(!results.is_empty());
     }
 }

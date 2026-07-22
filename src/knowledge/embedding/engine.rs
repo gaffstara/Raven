@@ -92,8 +92,9 @@ impl LocalEmbeddingEngine {
     /// Create a new engine and fit it with documents.
     pub fn with_documents(documents: &[&str]) -> EmbeddingResult<Self> {
         let mut model = TfidfEmbeddingModel::new();
-        model.fit(documents)
-            .map_err(|e| EmbeddingError::ModelNotFitted(e))?;
+        model
+            .fit(documents)
+            .map_err(EmbeddingError::ModelNotFitted)?;
 
         Ok(Self {
             model: Arc::new(Mutex::new(model)),
@@ -101,9 +102,61 @@ impl LocalEmbeddingEngine {
         })
     }
 
+    /// Persist the fitted TF-IDF model to a file (JSON).
+    pub fn persist_model(&self, path: &str) -> EmbeddingResult<()> {
+        let model = self
+            .model
+            .lock()
+            .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
+        let data =
+            serde_json::to_string(&*model).map_err(|e| EmbeddingError::IoError(e.to_string()))?;
+        std::fs::write(path, data).map_err(|e| EmbeddingError::IoError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Load a persisted TF-IDF model from a file and replace the current model.
+    pub fn load_model(&self, path: &str) -> EmbeddingResult<()> {
+        let data =
+            std::fs::read_to_string(path).map_err(|e| EmbeddingError::IoError(e.to_string()))?;
+        let model: TfidfEmbeddingModel =
+            serde_json::from_str(&data).map_err(|e| EmbeddingError::IoError(e.to_string()))?;
+        let mut guard = self
+            .model
+            .lock()
+            .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
+        *guard = model;
+        Ok(())
+    }
+
+    /// Rebuild the internal model from provided documents (full re-fit).
+    pub fn rebuild_model(&self, documents: &[&str]) -> EmbeddingResult<()> {
+        if documents.is_empty() {
+            return Err(EmbeddingError::InvalidInput("documents empty".to_string()));
+        }
+        let mut new_model = TfidfEmbeddingModel::new();
+        new_model.fit(documents).map_err(EmbeddingError::EmbeddingFailed)?;
+        let mut guard = self
+            .model
+            .lock()
+            .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
+        *guard = new_model;
+        Ok(())
+    }
+
+    /// Replace/Update the model using the provided documents (convenience for incremental update).
+    pub fn update_model(&self, documents: &[&str]) -> EmbeddingResult<()> {
+        // For now perform a full rebuild using the provided documents.
+        self.rebuild_model(documents)
+    }
+
+    /// Return an engine version identifier.
+    pub fn version(&self) -> &'static str {
+        "tfidf-1.0"
+    }
+
     /// Enable or disable caching.
     pub fn set_cache_enabled(&self, enabled: bool) -> EmbeddingResult<()> {
-        let mut cache = self
+        let cache = self
             .cache
             .lock()
             .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
@@ -112,7 +165,9 @@ impl LocalEmbeddingEngine {
     }
 
     /// Get cache statistics.
-    pub fn cache_statistics(&self) -> EmbeddingResult<crate::knowledge::embedding::cache::EmbeddingCacheStats> {
+    pub fn cache_statistics(
+        &self,
+    ) -> EmbeddingResult<crate::knowledge::embedding::cache::EmbeddingCacheStats> {
         let cache = self
             .cache
             .lock()
@@ -126,20 +181,16 @@ impl LocalEmbeddingEngine {
             .cache
             .lock()
             .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
-        cache
-            .persist(path)
-            .map_err(|e| EmbeddingError::IoError(e))
+        cache.persist(path).map_err(EmbeddingError::IoError)
     }
 
     /// Load cache from disk.
     pub fn load_cache(&self, path: &str) -> EmbeddingResult<usize> {
-        let mut cache = self
+        let cache = self
             .cache
             .lock()
             .map_err(|e| EmbeddingError::LockError(e.to_string()))?;
-        cache
-            .load(path)
-            .map_err(|e| EmbeddingError::IoError(e))
+        cache.load(path).map_err(EmbeddingError::IoError)
     }
 }
 
@@ -197,13 +248,7 @@ impl EmbeddingEngine for LocalEmbeddingEngine {
     }
 
     fn dimension(&self) -> usize {
-        let model = self
-            .model
-            .lock()
-            .ok()
-            .map(|m| m.dimension())
-            .unwrap_or(768)
-        ;
+        let model = self.model.lock().ok().map(|m| m.dimension()).unwrap_or(768);
         model
     }
 

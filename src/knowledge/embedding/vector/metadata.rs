@@ -192,10 +192,7 @@ impl MetadataStore {
 
     /// Filter metadata by module.
     pub fn by_module(&self, module: &str) -> Vec<&VectorMetadata> {
-        self.store
-            .values()
-            .filter(|m| m.module == module)
-            .collect()
+        self.store.values().filter(|m| m.module == module).collect()
     }
 
     /// Find metadata by predicate.
@@ -203,10 +200,7 @@ impl MetadataStore {
     where
         F: Fn(&VectorMetadata) -> bool,
     {
-        self.store
-            .values()
-            .filter(|m| predicate(m))
-            .collect()
+        self.store.values().filter(|m| predicate(m)).collect()
     }
 
     /// Clear all metadata.
@@ -227,11 +221,8 @@ mod tests {
 
     #[test]
     fn test_metadata_creation() {
-        let meta = VectorMetadata::minimal(
-            "v1".to_string(),
-            "d1".to_string(),
-            "content".to_string(),
-        );
+        let meta =
+            VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "content".to_string());
         assert_eq!(meta.id, "v1");
         assert_eq!(meta.document_id, "d1");
     }
@@ -239,11 +230,8 @@ mod tests {
     #[test]
     fn test_metadata_store() {
         let mut store = MetadataStore::new();
-        let meta = VectorMetadata::minimal(
-            "v1".to_string(),
-            "d1".to_string(),
-            "content".to_string(),
-        );
+        let meta =
+            VectorMetadata::minimal("v1".to_string(), "d1".to_string(), "content".to_string());
         store.insert(meta);
         assert_eq!(store.len(), 1);
         assert!(store.get("v1").is_some());
@@ -263,7 +251,7 @@ mod tests {
         }
 
         let by_doc = store.by_document("d0");
-        assert!(by_doc.len() >= 1);
+        assert!(!by_doc.is_empty());
 
         let by_tag = store.by_tag("test");
         assert_eq!(by_tag.len(), 3);

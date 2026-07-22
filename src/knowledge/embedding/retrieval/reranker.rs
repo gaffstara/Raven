@@ -1,6 +1,6 @@
 //! Re-ranking and post-processing of search results.
 
-use crate::knowledge::embedding::vector::search::{SearchResult, SearchResultSet};
+use crate::knowledge::embedding::vector::search::SearchResultSet;
 
 /// Re-ranking strategy for search results.
 #[derive(Debug, Clone, Copy)]
@@ -13,17 +13,38 @@ pub enum RerankingStrategy {
     ByLength,
     /// Re-rank by source diversity (prefer results from different sources).
     ByDiversity,
+    /// Multi-feature deterministic reranking combining similarity, length, and tag overlap.
+    Multi,
 }
 
 /// A reranker for improving search result quality.
 pub struct SearchResultReranker {
     strategy: RerankingStrategy,
+    multi_weights: MultiWeights,
+}
+
+/// Weights for multi-feature reranking.
+#[derive(Debug, Clone, Copy)]
+pub struct MultiWeights {
+    pub similarity: f32,
+    pub length: f32,
+    pub tag: f32,
+}
+
+impl Default for MultiWeights {
+    fn default() -> Self {
+        Self {
+            similarity: 0.7,
+            length: 0.2,
+            tag: 0.1,
+        }
+    }
 }
 
 impl SearchResultReranker {
     /// Create a new reranker with the specified strategy.
     pub fn new(strategy: RerankingStrategy) -> Self {
-        Self { strategy }
+        Self { strategy, multi_weights: MultiWeights::default() }
     }
 
     /// Re-rank a search result set.
@@ -33,7 +54,55 @@ impl SearchResultReranker {
             RerankingStrategy::ByScore => self.rerank_by_score(results),
             RerankingStrategy::ByLength => self.rerank_by_length(results),
             RerankingStrategy::ByDiversity => self.rerank_by_diversity(results),
+            RerankingStrategy::Multi => self.rerank_by_multi(results),
         }
+    }
+
+    /// Multi-feature reranking.
+    fn rerank_by_multi(&self, mut results: SearchResultSet) -> SearchResultSet {
+        // Tokenize query
+        let query_tokens: std::collections::HashSet<String> = results
+            .query
+            .to_lowercase()
+            .split_whitespace()
+            .map(|s| s.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        for r in results.results.iter_mut() {
+            let sim = r.similarity_score.clamp(0.0, 1.0);
+            let length = (r.content.len() as f32).min(2000.0) / 2000.0;
+
+            let tag_score = r
+                .metadata
+                .get("tags")
+                .map(|tags| {
+                    tags.split(',')
+                        .map(|t| t.trim().to_lowercase())
+                        .filter(|t| !t.is_empty())
+                        .filter(|t| query_tokens.contains(t))
+                        .count() as f32
+                })
+                .unwrap_or(0.0);
+
+            let tag_norm = r
+                .metadata
+                .get("tags")
+                .map(|tags| tags.split(',').filter(|t| !t.trim().is_empty()).count() as f32)
+                .filter(|c| *c > 0.0)
+                .map(|c| tag_score / c)
+                .unwrap_or(0.0);
+
+            let score = self.multi_weights.similarity * sim
+                + self.multi_weights.length * length
+                + self.multi_weights.tag * tag_norm;
+
+            r.similarity_score = score.clamp(0.0, 1.0);
+        }
+
+        // Sort by new score
+        results.results.sort_by(|a, b| b.similarity_score.partial_cmp(&a.similarity_score).unwrap_or(std::cmp::Ordering::Equal));
+        results
     }
 
     /// Re-rank by similarity score (already sorted, but normalize).
@@ -60,7 +129,7 @@ impl SearchResultReranker {
     }
 
     /// Re-rank by diversity (prefer results from different modules/sources).
-    fn rerank_by_diversity(&self, mut results: SearchResultSet) -> SearchResultSet {
+    fn rerank_by_diversity(&self, results: SearchResultSet) -> SearchResultSet {
         let mut seen_sources = std::collections::HashSet::new();
         let mut diversity_scores: Vec<(usize, f32)> = Vec::new();
 
@@ -70,15 +139,16 @@ impl SearchResultReranker {
                 .get("module")
                 .map(|m| m.as_str())
                 .unwrap_or("unknown");
-            let diversity_bonus = if seen_sources.insert(module) { 0.1 } else { 0.0 };
+            let diversity_bonus = if seen_sources.insert(module) {
+                0.1
+            } else {
+                0.0
+            };
             let score = result.similarity_score + diversity_bonus;
             diversity_scores.push((idx, score));
         }
 
-        diversity_scores.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        diversity_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         let reranked = diversity_scores
             .into_iter()
@@ -105,10 +175,7 @@ pub struct ContextBuilder;
 
 impl ContextBuilder {
     /// Build a context string from search results.
-    pub fn build_context(
-        results: &SearchResultSet,
-        max_tokens: usize,
-    ) -> String {
+    pub fn build_context(results: &SearchResultSet, max_tokens: usize) -> String {
         let mut context = String::new();
         let mut tokens_used = 0;
 
@@ -151,6 +218,7 @@ impl ContextBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::knowledge::embedding::SearchResult;
     use std::collections::HashMap;
 
     fn make_result(id: &str, score: f32, content: &str) -> SearchResult {
@@ -184,7 +252,11 @@ mod tests {
     fn test_build_context() {
         let results = SearchResultSet::new(
             vec![
-                make_result("v1", 0.9, "This is a long context that contains information"),
+                make_result(
+                    "v1",
+                    0.9,
+                    "This is a long context that contains information",
+                ),
                 make_result("v2", 0.8, "Another piece of context"),
             ],
             "query".to_string(),

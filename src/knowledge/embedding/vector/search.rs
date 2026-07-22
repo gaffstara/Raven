@@ -16,7 +16,10 @@ impl SearchResult {
     /// Create a new search result from a stored vector.
     pub fn from_stored(vector_id: String, similarity_score: f32, stored: &StoredVector) -> Self {
         let mut metadata = std::collections::HashMap::new();
-        metadata.insert("document_id".to_string(), stored.metadata.document_id.clone());
+        metadata.insert(
+            "document_id".to_string(),
+            stored.metadata.document_id.clone(),
+        );
         metadata.insert("chunk_id".to_string(), stored.metadata.chunk_id.to_string());
         metadata.insert("language".to_string(), stored.metadata.language.clone());
         metadata.insert("source".to_string(), stored.metadata.source.clone());

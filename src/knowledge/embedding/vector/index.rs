@@ -1,11 +1,8 @@
-//! KD-tree based vector index for efficient similarity search.
+//! Vector index backed by in-memory storage with search capabilities.
 //!
-//! This implementation provides a production-ready vector index that supports
-//! insertion, removal, update, and search operations. It uses a KD-tree structure
-//! for efficient nearest neighbor queries (better than linear scan).
-//!
-//! Note: This is designed to be easily replaceable with HNSW/IVF/PQ in the future
-//! without changing the public API.
+// This implementation provides a stable public API and currently performs
+// exact nearest-neighbor search by scanning stored vectors. It's designed
+// to be replaceable by a more advanced index (KD-tree, HNSW) in future.
 
 use crate::knowledge::embedding::similarity::SimilarityMetric;
 use crate::knowledge::embedding::vector::DenseVector;
@@ -13,33 +10,19 @@ use crate::knowledge::embedding::vector::search::{SearchResult, SearchResultSet}
 use crate::knowledge::embedding::vector::storage::{StoredVector, VectorStorage};
 use std::sync::{Arc, Mutex};
 
-/// KD-tree node for hierarchical vector partitioning.
-#[derive(Debug, Clone)]
-struct KdTreeNode {
-    id: String,
-    vector: DenseVector,
-    split_dim: usize,
-    left: Option<Box<KdTreeNode>>,
-    right: Option<Box<KdTreeNode>>,
-}
-
-impl KdTreeNode {
-    fn new(id: String, vector: DenseVector, split_dim: usize) -> Self {
-        Self {
-            id,
-            vector,
-            split_dim,
-            left: None,
-            right: None,
-        }
-    }
-}
-
-/// A KD-tree index for vector similarity search.
+/// A production-ready vector index for similarity search.
 pub struct VectorIndex {
     storage: Arc<Mutex<VectorStorage>>,
-    root: Option<Box<KdTreeNode>>,
     similarity_metric: Arc<dyn SimilarityMetric>,
+}
+
+/// Options to control vector search behavior.
+#[derive(Debug, Clone, Default)]
+pub struct SearchOptions {
+    pub min_score: Option<f32>,
+    pub metadata_filter: Option<std::collections::HashMap<String, String>>,
+    pub namespace: Option<String>,
+    pub language: Option<String>,
 }
 
 impl VectorIndex {
@@ -47,7 +30,6 @@ impl VectorIndex {
     pub fn new(similarity_metric: Arc<dyn SimilarityMetric>) -> Self {
         Self {
             storage: Arc::new(Mutex::new(VectorStorage::new())),
-            root: None,
             similarity_metric,
         }
     }
@@ -65,52 +47,9 @@ impl VectorIndex {
         }
 
         // Insert into storage
-        {
-            let mut storage = self.storage.lock().map_err(|e| e.to_string())?;
-            storage.insert(id.clone(), vector.clone(), metadata);
-        }
-
-        // Insert into KD-tree
-        let root = std::mem::take(&mut self.root);
-        self.root = Some(Box::new(Self::insert_node_static(
-            root, id, vector, 0, dim,
-        )));
-
+        let mut storage = self.storage.lock().map_err(|e| e.to_string())?;
+        storage.insert(id, vector, metadata);
         Ok(())
-    }
-
-    /// Internal recursive KD-tree insertion (static method).
-    fn insert_node_static(
-        node: Option<Box<KdTreeNode>>,
-        id: String,
-        vector: DenseVector,
-        depth: usize,
-        dim: usize,
-    ) -> KdTreeNode {
-        match node {
-            None => KdTreeNode::new(id, vector, depth % dim),
-            Some(mut current) => {
-                let split_dim = depth % dim;
-                if vector.data()[split_dim] < current.vector.data()[split_dim] {
-                    current.left = Some(Box::new(Self::insert_node_static(
-                        current.left.take(),
-                        id,
-                        vector,
-                        depth + 1,
-                        dim,
-                    )));
-                } else {
-                    current.right = Some(Box::new(Self::insert_node_static(
-                        current.right.take(),
-                        id,
-                        vector,
-                        depth + 1,
-                        dim,
-                    )));
-                }
-                *current
-            }
-        }
     }
 
     /// Remove a vector from the index.
@@ -121,12 +60,12 @@ impl VectorIndex {
                 return Ok(false);
             }
         }
-        
+
         {
             let mut storage = self.storage.lock().map_err(|e| e.to_string())?;
             storage.remove(id);
         }
-        
+
         self.rebuild_tree();
         Ok(true)
     }
@@ -140,7 +79,7 @@ impl VectorIndex {
     ) -> Result<bool, String> {
         let mut storage = self.storage.lock().map_err(|e| e.to_string())?;
         if storage.contains(id) {
-            storage.update_metadata(id, metadata);
+            storage.insert(id.to_string(), vector, metadata);
             drop(storage);
             self.rebuild_tree();
             Ok(true)
@@ -149,45 +88,100 @@ impl VectorIndex {
         }
     }
 
-    /// Search for the K nearest neighbors of a query vector.
+    /// Search for the K nearest neighbors of a query vector (default options).
     pub fn search(&self, query: &DenseVector, k: usize, query_text: &str) -> Result<SearchResultSet, String> {
+        self.search_with_options(query, k, query_text, &SearchOptions::default())
+    }
+
+    /// Search with explicit options for filtering and scoring.
+    pub fn search_with_options(
+        &self,
+        query: &DenseVector,
+        k: usize,
+        query_text: &str,
+        opts: &SearchOptions,
+    ) -> Result<SearchResultSet, String> {
         let storage = self.storage.lock().map_err(|e| e.to_string())?;
         let all_vectors = storage.all_stored();
 
-        let mut results: Vec<(String, f32, &StoredVector)> = all_vectors
-            .iter()
-            .map(|sv| {
-                let score = self.similarity_metric.similarity(query, &sv.vector);
-                (sv.id.clone(), score, *sv)
+        // Compute raw scores and apply metadata/language/namespace filters
+        let mut scored: Vec<(String, f32, &StoredVector)> = Vec::new();
+        for sv in &all_vectors {
+            // Namespace/module filter
+            if let Some(ns) = &opts.namespace {
+                if sv.metadata.module != *ns {
+                    continue;
+                }
+            }
+
+            // Language filter
+            if let Some(lang) = &opts.language {
+                if sv.metadata.language != *lang {
+                    continue;
+                }
+            }
+
+            // Metadata key-value filters
+            if let Some(map) = &opts.metadata_filter {
+                let mut matched = true;
+                for (k, v) in map.iter() {
+                    if let Some(val) = sv.metadata.extra.get(k) {
+                        if val != v {
+                            matched = false;
+                            break;
+                        }
+                    } else {
+                        matched = false;
+                        break;
+                    }
+                }
+                if !matched {
+                    continue;
+                }
+            }
+
+            let score = self.similarity_metric.similarity(query, &sv.vector);
+            scored.push((sv.id.clone(), score, sv));
+        }
+
+        // If no candidates, return empty set
+        if scored.is_empty() {
+            return Ok(SearchResultSet::new(vec![], query_text.to_string(), 0, 0));
+        }
+
+        // Normalize by top score
+        let mut max_score = scored.iter().map(|(_, s, _)| *s).fold(f32::MIN, f32::max);
+        if max_score.is_nan() || max_score <= 0.0 {
+            // avoid division by zero; use absolute max
+            max_score = scored.iter().map(|(_, s, _)| s.abs()).fold(0.0, f32::max);
+            if max_score <= 0.0 {
+                max_score = 1.0;
+            }
+        }
+
+        let mut results: Vec<SearchResult> = scored
+            .into_iter()
+            .map(|(id, raw_score, sv)| {
+                let mut norm = raw_score / max_score;
+                if norm.is_nan() || norm.is_infinite() {
+                    norm = 0.0;
+                }
+                norm = norm.clamp(0.0, 1.0);
+                SearchResult::from_stored(id, norm, sv)
             })
             .collect();
 
-        // Sort by similarity score (descending)
-        results.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Apply min_score filter if present
+        if let Some(min) = opts.min_score {
+            results.retain(|r| r.similarity_score >= min);
+        }
 
-        // Keep only top-k
+        // Sort and take top-k
+        results.sort_by(|a, b| b.similarity_score.partial_cmp(&a.similarity_score).unwrap_or(std::cmp::Ordering::Equal));
+        let total_candidates = results.len();
         results.truncate(k);
 
-        let search_results: Vec<SearchResult> = results
-            .iter()
-            .map(|(id, score, sv)| SearchResult::from_stored(id.clone(), *score, sv))
-            .collect();
-
-        Ok(SearchResultSet::new(
-            search_results,
-            query_text.to_string(),
-            all_vectors.len(),
-            all_vectors.len(),
-        ))
-    }
-
-    /// Get a vector by ID.
-    pub fn get(&self, id: &str) -> Result<Option<DenseVector>, String> {
-        let storage = self.storage.lock().map_err(|e| e.to_string())?;
-        Ok(storage.get(id).cloned())
+        Ok(SearchResultSet::new(results, query_text.to_string(), total_candidates, total_candidates))
     }
 
     /// Batch insert multiple vectors.
@@ -210,25 +204,12 @@ impl VectorIndex {
         Ok(entries.len())
     }
 
-    /// Rebuild the KD-tree from storage (useful after bulk operations).
+    /// Rebuild the index from storage.
+    ///
+    /// Currently, the vector storage is authoritative and search uses exact scanning.
+    /// This method is kept for API compatibility and future index structures.
     fn rebuild_tree(&mut self) {
-        self.root = None;
-        if let Ok(storage) = self.storage.lock() {
-            let all = storage.all_stored();
-            let dim = all.first().map(|sv| sv.vector.dimension()).unwrap_or(0);
-            if dim > 0 {
-                for sv in all {
-                    let root = std::mem::take(&mut self.root);
-                    self.root = Some(Box::new(Self::insert_node_static(
-                        root,
-                        sv.id.clone(),
-                        sv.vector.clone(),
-                        0,
-                        dim,
-                    )));
-                }
-            }
-        }
+        // No-op for storage-backed exact search.
     }
 
     /// Get the total number of vectors in the index.
@@ -245,7 +226,6 @@ impl VectorIndex {
 
     /// Clear all vectors from the index.
     pub fn clear(&mut self) -> Result<(), String> {
-        self.root = None;
         let mut storage = self.storage.lock().map_err(|e| e.to_string())?;
         storage.clear();
         Ok(())
@@ -257,15 +237,13 @@ impl VectorIndex {
         let all = storage.all_stored();
         let data = serde_json::to_string(&all)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, data)
-            .map_err(|e| format!("IO error: {}", e))?;
+        std::fs::write(path, data).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 
     /// Load index from a file (deserialization).
     pub fn load(&mut self, path: &str) -> Result<usize, String> {
-        let data = std::fs::read_to_string(path)
-            .map_err(|e| format!("IO error: {}", e))?;
+        let data = std::fs::read_to_string(path).map_err(|e| format!("IO error: {}", e))?;
         let vectors: Vec<StoredVector> = serde_json::from_str(&data)
             .map_err(|e| format!("Deserialization error: {}", e))?;
 
